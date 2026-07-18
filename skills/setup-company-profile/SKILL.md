@@ -5,38 +5,40 @@ description: Research the user's company and set up its profile on hacklab using
 
 # setup-company-profile
 
-Set up a company profile on hacklab so hackers can find the company and see that it is hiring. You research the company and prepare every field; the user drives the `hacklab org` editor (it is interactive — there is no non-interactive apply for orgs), pasting values from the sheet you prepared.
+Set up a company profile on hacklab so hackers can find the company and see that it is hiring. You research the company, confirm the findings with the user, then apply everything yourself with the CLI's non-interactive org verbs (`hacklab org list/claim/create/apply --json`, CLI >= 0.7.6). The user only answers questions and approves — no prompts to drive.
 
 ## Org fields
 
-The `hacklab org` editor covers these fields (org page lives at `hacklab.so/o/<slug>`):
+Field names as `hacklab org set` / `org apply` take them (org page lives at `hacklab.so/o/<slug>`):
 
 | field | meaning | shape |
 | --- | --- | --- |
-| Name | company name | text |
-| Slug | URL handle | lowercase letters, numbers, hyphens |
-| Logo URL | logo image | URL |
-| Website | company site | URL |
-| Short description | one-liner | text |
-| Long description | the pitch | text, a few sentences |
-| YC batch / YC slug / YC URL | YC identity, if a YC company | e.g. `W24`, `ycombinator.com/companies/<slug>` |
-| WaaS URL | Work at a Startup jobs page | URL |
-| Team size | headcount | whole number |
-| Status / Stage | e.g. Active / Seed, Series A | text |
-| Hiring? | the flag hackers filter by | yes / no |
-| Industries / Tags / Locations | discovery metadata | comma-separated lists |
+| `name` | company name | text |
+| `slug` | URL handle | lowercase letters, numbers, hyphens |
+| `logo` | logo image | URL |
+| `website` | company site | URL |
+| `description` | one-liner | text |
+| `long-description` | the pitch | text, a few sentences |
+| `yc-batch` / `yc-slug` / `yc-url` | YC identity, if a YC company | e.g. `W24`, `ycombinator.com/companies/<slug>` |
+| `waas` | Work at a Startup jobs page | URL |
+| `team-size` | headcount | whole number |
+| `status` / `stage` | e.g. Active / Seed, Series A | text |
+| `hiring` | the flag hackers filter by | yes / no |
+| `industries` / `tags` / `locations` | discovery metadata | lists (arrays in yaml, or comma-separated) |
 
 ## Step 1 — Preflight
 
-1. Check the CLI: `hacklab --version` (if missing: `npm i -g hacklab`).
+1. Check the CLI: `hacklab --version` — must be >= 0.7.6 (if missing or older: `npm i -g hacklab`).
 2. Check auth: `hacklab whoami`. If not logged in, have the user run `hacklab login` (interactive browser flow). Note: claim eligibility partly comes from the email domain of the account — a work email helps.
+3. Get the lay of the land: `hacklab org list --json` → `organizations` (already managed) and `claimable` (with the reason: member / email domain).
 
 ## Step 2 — Identify the company and the path in
 
-Ask which company this is for, then determine the route:
+Ask which company this is for, then pick the route from the `org list` output:
 
-- **Claim** — hacklab pre-seeds YC companies. If the company might already exist (any YC company, or one a teammate added), the user runs `hacklab org claim`: it lists companies claimable via membership or matching email domain. This is the preferred route — it keeps the existing slug and any seeded data.
-- **Create** — otherwise `hacklab org create` (name, slug, website, short description). If create hits an existing slug, the CLI itself offers to claim when possible; if the slug is taken by someone else, pick a different slug.
+- **Already managed** — it's in `organizations`: skip straight to research + apply.
+- **Claim** — it's in `claimable` (hacklab pre-seeds YC companies): `hacklab org claim <slug> --json`. Preferred — keeps the existing slug and seeded data. Idempotent: re-claiming your own org is a no-op success.
+- **Create** — otherwise: `hacklab org create --name "<name>" [--slug <slug>] [--website <url>] --json` (slug is derived from the name when omitted). On a slug collision the CLI exits with `error.code: "slug_exists"` plus `existing` and `claimable` — if `claimable` is true, reroute to `org claim <slug>`; otherwise pick a different slug.
 
 ## Step 3 — Research the company
 
@@ -69,23 +71,41 @@ Locations     Warsaw, Remote         (careers page)
 
 Descriptions especially should be approved verbatim — this is their public pitch to hackers.
 
-## Step 5 — Apply via the interactive editor
+## Step 5 — Apply
 
-The org editor is interactive and autosaves per field. Walk the user through it:
+Write the approved fields to a throwaway `org.yaml` in a scratch directory (never the user's repo), then apply in one shot:
 
-1. Run `hacklab org claim` or `hacklab org create` per Step 2 (after create/claim the CLI offers "edit its details now?" — say yes).
-2. For the remaining fields, run `hacklab org`: pick a field, paste the value from the confirmed sheet, repeat. Every save is immediate; quitting loses nothing.
-3. Keep the confirmed sheet visible in your final message so the user can copy values line by line.
+```yaml
+name: Acme Robotics
+description: Robots for warehouses.
+long-description: >
+  Acme builds picking robots that slot into existing warehouse racking.
+  Founded 2024, YC W24.
+website: acme.com
+logo: acme.com/logo.png
+yc-batch: W24
+team-size: 12
+hiring: true
+industries: [Robotics, Logistics]
+locations: [Warsaw, Remote]
+```
 
-Warn before slug changes: old `/o/<old-slug>` links stop resolving.
+```sh
+hacklab org apply org.yaml --json          # or pipe: ... | hacklab org apply - --json
+```
+
+Only fields present in the file are touched. `--org <slug>` is only needed when the account manages more than one company (a missing flag errors with `ambiguous_org` and the slugs). Delete the yaml afterwards. Avoid changing `slug` on an existing org — the response's `warnings` array will tell you old links broke; do it only if the user explicitly wants it.
+
+If `apply` rejects a field, fix or drop that field and re-apply — the server owns validation and re-applying is safe.
 
 ## Step 6 — Verify
 
-Open `https://hacklab.so/o/<slug>` and check it renders: logo loads, links work, hiring badge matches the answer from Step 4. Report the URL.
+Check `hacklab org view --json` reflects every approved field, then open `https://hacklab.so/o/<slug>`: logo loads, links work, hiring badge matches the answer from Step 4. Report the URL.
 
 ## Failure modes
 
 - `not logged in` → `hacklab login`.
-- "no companies to claim" → the user is not a member of an unclaimed company and their email domain does not match any; go the `create` route.
-- Slug already claimed by someone else → different slug, or the user asks the current owner to add them as a member.
+- `claimable` empty and the company isn't yours → the user is not a member of an unclaimed company and their email domain does not match any; go the `create` route.
+- `slug_exists` with `claimable: false` → someone else owns it: different slug, or the user asks the current owner to add them as a member.
+- `ambiguous_org` → pass `--org <slug>`.
 - Sparse research (stealth company) → name, slug, website, one-line description, and the hiring flag is a perfectly good profile. Do not pad.
