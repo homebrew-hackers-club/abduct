@@ -1,6 +1,6 @@
 {
   "name": "abduct",
-  "description": "Skill pack for interacting with hacklab and looking for a job.",
+  "description": "Skill pack for employers on hacklab: company profile setup, hacker discovery, hiring.",
   "version": "0.1.0",
   "author": {
     "name": "homebrew hackers club"
