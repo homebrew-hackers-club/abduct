@@ -1,0 +1,8 @@
+{
+  "name": "abduct",
+  "description": "Skill pack for interacting with hacklab and looking for a job.",
+  "version": "0.1.0",
+  "author": {
+    "name": "homebrew hackers club"
+  }
+}
